@@ -14,8 +14,6 @@ AIRTABLE_BASE_ID = 'app8OPfKOwre37OSg'
 AIRTABLE_TABLE_NAME = 'teams'
 
 # Route for handling incoming messages
-
-
 @app.route('/sms', methods=['POST'])
 def handle_incoming_sms():
     # Get the message body and sender's phone number
@@ -65,12 +63,21 @@ def handle_incoming_sms():
     # Print the response
     print(response.text)
 
+    entry = airtable_client.search('Name', sender_number)
+    airtable_client.update(
+        entry[0]['id'], {'StatusHealth': response.text}, typecast=True)
+
     # Send a response message
     response = jsonify({
         'message': 'ur doc will get back to u'
     })
 
     return response
+
+# Route for handling incoming messages
+@app.route('/healthdata', methods=['POST'])
+def return_patient_healthdata():
+    return
 
 
 if __name__ == 'main':
