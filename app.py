@@ -4,14 +4,20 @@ import requests
 import airtable
 import json
 import os
+from twilio.rest import Client
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/aryanmahindra/Downloads/innate-summit-378204-849ac63c3e24.json'
 
 app = Flask(__name__)
 
+# Airtable info
 AIRTABLE_API_KEY = 'keyiBU3kbqq2MMpOC'
 AIRTABLE_BASE_ID = 'app8OPfKOwre37OSg'
 AIRTABLE_TABLE_NAME = 'teams'
+
+# Twilio info
+account_sid = 'ACf56b45a35621d822d8ccd765eb8a34ce'
+auth_token = '0c1e4b21118ae77b9e6f252f563a2e33'
 
 # Route for handling incoming messages
 
@@ -76,18 +82,69 @@ def handle_incoming_sms():
 
     return response
 
-# Route for handling incoming messages
+# Route to return patient data
 
 
-@app.route('/healthdata', methods=['POST'])
+@app.route('/healthdata', methods=['GET'])
 def return_patient_healthdata():
-    patient_number = request.values.get('From', None)
+    patient_number = request.values.get('Number', None)
 
     airtable_client = airtable.Airtable(
         AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_API_KEY)
     entry = airtable_client.search('Name', patient_number)
 
     return jsonify(entry)
+
+# Route to get all phone numbers
+
+
+@app.route('/numbers', methods=['GET'])
+def get_all_numbers():
+    airtable_client = airtable.Airtable(
+        AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_API_KEY)
+
+    numbers = set()  # use a set to store unique numbers
+
+    for record in airtable_client.get_all():
+        if 'number' in record['fields']:
+            numbers.update(record['fields']['number'])
+
+    return jsonify(list(numbers))
+
+# Route to add a new number
+
+
+@app.route('/conversation', methods=['POST'])
+def start_conversation():
+    patient_number = request.values.get('Number', None)
+
+    airtable_client = airtable.Airtable(
+        AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_API_KEY)
+
+    entry = airtable_client.search('Name', patient_number)
+    print(entry)
+
+    if (len(entry) is 0):
+        airtable_client.insert({
+            'Name': patient_number
+        })
+
+    client = Client(account_sid, auth_token)
+
+    # Set up the message content and recipient phone number
+    message_body = 'How are you feeling today?'
+
+    # Send the message
+    message = client.messages.create(
+        body=message_body,
+        from='+18582257875',  # Your Twilio phone number here
+        to=patient_number
+    )
+
+    # Print the message SID to confirm that the message was sent
+    print('Message SID:', message.sid)
+
+    return
 
 
 if __name__ == 'main':
