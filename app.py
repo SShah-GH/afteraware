@@ -2,7 +2,7 @@ import requests
 import json
 import os
 
-os.system('export GOOGLE_APPLICATION_CREDENTIALS="/Users/satvashah/Downloads/innate-summit-378204-849ac63c3e24.json"')
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/satvashah/Downloads/innate-summit-378204-849ac63c3e24.json'
 
 # Set up the request headers and body
 headers = {
