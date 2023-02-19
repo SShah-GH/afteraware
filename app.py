@@ -1,10 +1,10 @@
-
 from flask import Flask, request, jsonify
 import requests
 import airtable
 import json
 import os
 from twilio.rest import Client
+import openai
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/aryanmahindra/Downloads/innate-summit-378204-849ac63c3e24.json'
 
@@ -17,7 +17,10 @@ AIRTABLE_TABLE_NAME = 'teams'
 
 # Twilio info
 account_sid = 'ACf56b45a35621d822d8ccd765eb8a34ce'
-auth_token = '0c1e4b21118ae77b9e6f252f563a2e33'
+auth_token = 'a852ee16602cd2dc39eb38615deaf6f3'
+
+# OpenAI info
+openai.api_key = "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"
 
 # Route for handling incoming messages
 
@@ -75,12 +78,33 @@ def handle_incoming_sms():
     airtable_client.update(
         entry[0]['id'], {'StatusHealth': response.text}, typecast=True)
 
-    # Send a response message
-    response = jsonify({
-        'message': 'ur doc will get back to u'
-    })
+    prompt = "You are a nurse checking in on a patient. Write a conversation prompt to ask the patient how they are feeling."
+    prompt = prompt + "Note that the patient has already told you: " + \
+        entry[0]["fields"]["Status"]
 
-    return response
+    response = openai.Completion.create(
+        engine="text-davinci-002",
+        prompt=prompt,
+        max_tokens=50,
+        n=1,
+        stop=None,
+        temperature=0.5
+    )
+
+    print(response)
+
+    # Send generated prompt to user
+    client = Client(account_sid, auth_token)
+    message = client.messages.create(
+        body=message_body,
+        from_='+18582257875',  # Your Twilio phone number here
+        to=sender_number
+    )
+
+    # Print the message SID to confirm that the message was sent
+    print('Message SID:', message.sid)
+
+    return jsonify("success")
 
 # Route to return patient data
 
@@ -117,6 +141,9 @@ def get_all_numbers():
 @app.route('/conversation', methods=['POST'])
 def start_conversation():
     patient_number = request.values.get('Number', None)
+    patient_number = "+"+patient_number.strip()
+    patient_number.strip()
+    print(patient_number)
 
     airtable_client = airtable.Airtable(
         AIRTABLE_BASE_ID, AIRTABLE_TABLE_NAME, AIRTABLE_API_KEY)
@@ -137,14 +164,14 @@ def start_conversation():
     # Send the message
     message = client.messages.create(
         body=message_body,
-        from='+18582257875',  # Your Twilio phone number here
+        from_='+18582257875',  # Your Twilio phone number here
         to=patient_number
     )
 
     # Print the message SID to confirm that the message was sent
     print('Message SID:', message.sid)
 
-    return
+    return jsonify("success")
 
 
 if __name__ == 'main':
