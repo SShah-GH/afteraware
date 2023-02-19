@@ -5,6 +5,7 @@ import json
 import os
 from twilio.rest import Client
 import openai
+import json
 
 os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = '/Users/aryanmahindra/Downloads/innate-summit-378204-849ac63c3e24.json'
 
@@ -16,11 +17,11 @@ AIRTABLE_BASE_ID = 'app8OPfKOwre37OSg'
 AIRTABLE_TABLE_NAME = 'teams'
 
 # Twilio info
-account_sid = 'ACf56b45a35621d822d8ccd765eb8a34ce'
-auth_token = 'a852ee16602cd2dc39eb38615deaf6f3'
+account_sid = 'AC279b93ebe0524bc08ab1791d3d29da4b'
+auth_token = '38023f4848bb568563095635661cbd99'
 
 # OpenAI info
-openai.api_key = "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"
+openai.api_key = "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"
 
 # Route for handling incoming messages
 
@@ -46,9 +47,9 @@ def handle_incoming_sms():
             'Status': message_body})
     elif 'Status' in entry[0]['fields']:
         currentStatus = entry[0]['fields']["Status"]
-        currentStatus = currentStatus + message_body
         airtable_client.update(
-            entry[0]['id'], {'Status': currentStatus}, typecast=True)
+            entry[0]['id'], {'Status': currentStatus + ", A: " + message_body}, typecast=True)
+
     else:
         airtable_client.update(
             entry[0]['id'], {'Status': message_body}, typecast=True)
@@ -78,31 +79,53 @@ def handle_incoming_sms():
     airtable_client.update(
         entry[0]['id'], {'StatusHealth': response.text}, typecast=True)
 
-    prompt = "You are a nurse checking in on a patient. Write a conversation prompt to ask the patient how they are feeling."
-    prompt = prompt + "Note that the patient has already told you: " + \
+    prompt = "Ask a question as if you are a doctor checking in on a patient for post-operational aftercare."
+    prompt = prompt + "Here is your past conversation with the patient for context: " + \
         entry[0]["fields"]["Status"]
 
     response = openai.Completion.create(
-        engine="text-davinci-002",
+        model="text-davinci-003",
         prompt=prompt,
-        max_tokens=50,
-        n=1,
-        stop=None,
-        temperature=0.5
+        temperature=0.24,
+        max_tokens=480,
+        top_p=1,
+        frequency_penalty=0.5,
+        presence_penalty=0
     )
 
     print(response)
+    string_response = str(response)
 
-    # Send generated prompt to user
-    client = Client(account_sid, auth_token)
-    message = client.messages.create(
-        body=message_body,
-        from_='+18582257875',  # Your Twilio phone number here
-        to=sender_number
-    )
+    print("these are values to change")
+    print(type)
+    print("this is the string converted")
+    print(string_response)
 
-    # Print the message SID to confirm that the message was sent
-    print('Message SID:', message.sid)
+    response_dict = json.loads(string_response)
+    text_value = response_dict["choices"][0]["text"]
+
+    # Extract the "what is the problem?" text
+    what_is_the_problem = text_value.split("\n")[0].strip()
+
+    # first_question = response.split("\n")[0].strip()
+    # print(first_question)
+
+    if (len(response.choices[0].text.strip()) != 0):
+        # Send generated prompt to user
+        client = Client(account_sid, auth_token)
+        message = client.messages.create(
+            body=response.choices[0].text.strip(),
+            from_='+14093163562',  # Your Twilio phone number here
+            to=sender_number
+        )
+
+        # Print the message SID to confirm that the message was sent
+        print('Message SID:', message.sid)
+
+        entry = airtable_client.search('Name', sender_number)
+        currentStatus = entry[0]['fields']["Status"]
+        airtable_client.update(
+            entry[0]['id'], {'Status': currentStatus + ", Q: " + response.choices[0].text.strip()}, typecast=True)
 
     return jsonify("success")
 
@@ -159,17 +182,21 @@ def start_conversation():
     client = Client(account_sid, auth_token)
 
     # Set up the message content and recipient phone number
-    message_body = 'How are you feeling today?'
+    message_body = 'Hi, how are you feeling today?'
 
     # Send the message
     message = client.messages.create(
         body=message_body,
-        from_='+18582257875',  # Your Twilio phone number here
+        from_='+14093163562',  # Your Twilio phone number here
         to=patient_number
     )
 
     # Print the message SID to confirm that the message was sent
     print('Message SID:', message.sid)
+
+    entry = airtable_client.search('Name', patient_number)
+    airtable_client.update(
+        entry[0]['id'], {'Status': "Q: " + message_body}, typecast=True)
 
     return jsonify("success")
 
